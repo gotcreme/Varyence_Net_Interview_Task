@@ -72,5 +72,6 @@ TestResults/
 Presentation/CuCollaborate/Web.config
 
 !Presentation/Nop.Web/App_Data/Localization/*
+!Presentation/Nop.Web/content/samples/*
 
 
