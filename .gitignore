@@ -71,6 +71,6 @@ TestResults/
 *.swp
 Presentation/CuCollaborate/Web.config
 
-!Presentation/Nop.Web/App_Data/Localization/Installation/*
+!Presentation/Nop.Web/App_Data/Localization/*
 
 
