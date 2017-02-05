@@ -25,6 +25,7 @@ namespace Nop.Core.Domain.Catalog
         private ICollection<Discount> _appliedDiscounts;
         private ICollection<ProductWarehouseInventory> _productWarehouseInventory;
 
+        private static readonly int _priceToHaveFreeGiftCard = 1000;
 
         /// <summary>
         /// Gets or sets the product type identifier
@@ -487,9 +488,15 @@ namespace Nop.Core.Domain.Catalog
         public DateTime UpdatedOnUtc { get; set; }
 
 
+        public bool FreeGiftCardEligible
+        {
+            get { return Price >= _priceToHaveFreeGiftCard; }
+        }
 
-
-
+        public bool IsFreeGiftCard
+        {
+            get { return IsGiftCard && Price == 0; }
+        }
 
         /// <summary>
         /// Gets or sets the product type
@@ -610,10 +617,6 @@ namespace Nop.Core.Domain.Catalog
                 this.RentalPricePeriodId = (int)value;
             }
         }
-
-
-
-
 
 
         /// <summary>

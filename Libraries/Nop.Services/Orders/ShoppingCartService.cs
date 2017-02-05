@@ -15,6 +15,7 @@ using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Security;
 using Nop.Services.Stores;
+using Nop.Services.Orders;
 
 namespace Nop.Services.Orders
 {
@@ -43,6 +44,7 @@ namespace Nop.Services.Orders
         private readonly IStoreMappingService _storeMappingService;
         private readonly IGenericAttributeService _genericAttributeService;
         private readonly IProductAttributeService _productAttributeService;
+        private readonly IGiftCardService _giftCardService;
         private readonly IDateTimeHelper _dateTimeHelper;
 
         #endregion
@@ -89,6 +91,7 @@ namespace Nop.Services.Orders
             IStoreMappingService storeMappingService,
             IGenericAttributeService genericAttributeService,
             IProductAttributeService productAttributeService,
+            IGiftCardService giftCardService,
             IDateTimeHelper dateTimeHelper)
         {
             this._sciRepository = sciRepository;
@@ -110,6 +113,7 @@ namespace Nop.Services.Orders
             this._genericAttributeService = genericAttributeService;
             this._productAttributeService = productAttributeService;
             this._dateTimeHelper = dateTimeHelper;
+            this._giftCardService = giftCardService;
         }
 
         #endregion
@@ -140,6 +144,16 @@ namespace Nop.Services.Orders
             //delete item
             _sciRepository.Delete(shoppingCartItem);
 
+            var cart = customer.ShoppingCartItems
+                .Where(sci => sci.ShoppingCartType == ShoppingCartType.ShoppingCart)
+                .LimitPerStore(storeId)
+                .ToList();
+
+            var freeGiftCartItem = cart.SingleOrDefault(x => x.Product.IsFreeGiftCard);
+
+            if ( freeGiftCartItem != null && !cart.Any(x => x.Product.FreeGiftCardEligible) )
+                _sciRepository.Delete(freeGiftCartItem);
+
             //reset "HasShoppingCartItems" property used for performance optimization
             customer.HasShoppingCartItems = customer.ShoppingCartItems.Any();
             _customerService.UpdateCustomer(customer);
@@ -149,11 +163,6 @@ namespace Nop.Services.Orders
                 //only for shopping cart items (ignore wishlist)
                 shoppingCartItem.ShoppingCartType == ShoppingCartType.ShoppingCart)
             {
-                var cart = customer.ShoppingCartItems
-                    .Where(x => x.ShoppingCartType == ShoppingCartType.ShoppingCart)
-                    .LimitPerStore(storeId)
-                    .ToList();
-
                 var checkoutAttributesXml = customer.GetAttribute<string>(SystemCustomerAttributeNames.CheckoutAttributes, _genericAttributeService, storeId);
                 checkoutAttributesXml = _checkoutAttributeParser.EnsureOnlyActiveAttributes(checkoutAttributesXml, cart);
                 _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.CheckoutAttributes, checkoutAttributesXml, storeId);
@@ -1151,8 +1160,43 @@ namespace Nop.Services.Orders
                         UpdatedOnUtc = now
                     };
                     customer.ShoppingCartItems.Add(shoppingCartItem);
-                    _customerService.UpdateCustomer(customer);
 
+                    var hasFreeGiftCards = cart.Any(x => x.Product.IsFreeGiftCard);
+
+                    if (product.FreeGiftCardEligible && !hasFreeGiftCards)
+                    {
+                        var giftCard = _productService.GetFreeGiftCardProduct(GiftCardType.Physical, 100);
+
+                        var giftCardRecipientName = _workContext.CurrentCustomer.GetFullName();
+                        var giftCardRecipientEmail = _workContext.CurrentCustomer.Email;
+
+                        var giftCardAttributesXml = _productAttributeParser.AddGiftCardAttribute(attributesXml: null,
+                            recipientName: giftCardRecipientName,
+                            recipientEmail: giftCardRecipientEmail,
+                            senderName: giftCardRecipientName,
+                            senderEmail: giftCardRecipientEmail,
+                            giftCardMessage: string.Empty);
+
+                        if (giftCard != null)
+                        {
+                            now = DateTime.UtcNow;
+                            var giftCardItem = new ShoppingCartItem
+                            {
+                                ShoppingCartType = shoppingCartType,
+                                StoreId = storeId,
+                                Product = giftCard,
+                                AttributesXml = giftCardAttributesXml,
+                                CustomerEnteredPrice = 0,
+                                Quantity = 1,
+                                RentalStartDateUtc = null,
+                                RentalEndDateUtc = null,
+                                CreatedOnUtc = now,
+                                UpdatedOnUtc = now                               
+                            };
+
+                            customer.ShoppingCartItems.Add(giftCardItem);
+                        }                       
+                    }
 
                     //updated "HasShoppingCartItems" property used for performance optimization
                     customer.HasShoppingCartItems = customer.ShoppingCartItems.Any();

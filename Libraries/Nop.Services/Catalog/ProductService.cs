@@ -211,7 +211,19 @@ namespace Nop.Services.Catalog
             var products = query.ToList();
             return products;
         }
-        
+      
+        public virtual Product GetFreeGiftCardProduct(GiftCardType giftCardType, int value)
+        {
+            var query = _productRepository.Table;
+
+            query = from p in query
+                        where p.GiftCardTypeId == (int)giftCardType
+                                && p.Price == 0 && p.Name.Contains(value.ToString())
+                        select p;
+
+            return query.SingleOrDefault();
+        }
+
         /// <summary>
         /// Gets product
         /// </summary>
